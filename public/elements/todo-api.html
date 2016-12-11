@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link href="../../bower_components/polymer/polymer.html" rel="import">
+    <link href="../../bower_components/iron-ajax/iron-ajax.html" rel="import">
+</head>
+
+<dom-module id="todo-api">
+
+    <template>
+        <!--auto-->
+        <iron-ajax id="ajax"
+                   handle-as="json"
+                   content-type="application/json"></iron-ajax>
+    </template>
+
+</dom-module>
+
+<script>
+    var baseUrl = "http://" + window.location.hostname + ":" + window.location.port
+    Polymer({
+        is: 'todo-api',
+        properties: {
+            localList: {
+                notify: true,
+                type: Array,
+                value: []
+            }
+        },
+        observers: [
+            'listChange(localList.*)'
+        ],
+        listChange: function (changeRecord) {
+            var _this = this;
+            if (changeRecord.path == 'localList.splices') {
+                // a task was added or removed
+                changeRecord.value.indexSplices.forEach(function (s) {
+                    s.removed.forEach(function (item) {
+                        //Delete task
+                        _this.deleteTask(item);
+                    });
+                    if (s.addedCount > 0) {
+                        //Add task
+                        _this.addTask(s);
+                    }
+                }, this);
+            } else {
+                // an individual task or its properties changed
+                if (changeRecord.value.rid != null) {
+                    _this.updateTask(changeRecord.value);
+                }
+            }
+        },
+        addTask: function (task) {
+            this.$.ajax.url = [baseUrl, "api/todo"].join('/');
+            this.$.ajax.body = JSON.stringify({ rid: task.object[task.index].rid, user: task.object[task.index].user, task: task.object[task.index].task });
+            this.$.ajax.method = "POST";
+            this.$.ajax.generateRequest();
+            console.log("id:" + task.object[task.index].rid + " task: " + task.object[task.index].task + " - by " + task.object[task.index].user + ' was added');
+        },
+        deleteTask: function (task) {
+            this.$.ajax.url = [baseUrl, "api/todo", task.rid].join('/');
+            this.$.ajax.body = JSON.stringify({ rid: task.rid});
+            this.$.ajax.method = "DELETE";
+            this.$.ajax.generateRequest();
+            console.log("id:" + task.rid + " task: " + task.task + " - by" + task.user + ' was removed');
+        },
+        updateTask: function (task) {
+            this.$.ajax.url = [baseUrl, "api/todo", task.rid].join('/');
+            this.$.ajax.body = JSON.stringify({ rid: task.rid, user: task.user, task: task.task });
+            this.$.ajax.method = "PUT";
+            this.$.ajax.generateRequest();
+            console.log("id:" + task.rid + " task: " + task.task + " - by " + task.user + ' changed');
+        },
+        ready: function (e) {
+            //init list
+            var _this = this;
+            this.$.ajax.url = [baseUrl, "api/todo"].join('/');
+            this.$.ajax.method = "GET";
+            this.$.ajax.generateRequest().completes.then(function (request) {
+              
+                //_this.localList = request.response;
+                _this.localList = JSON.parse(request.response);
+                console.log(request.response.length + ' task element/s were loaded');
+            });
+        }
+    });
+</script>
